@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# lock-models — Unmount and close the LUKS-encrypted AI model vault.
+# Usage: lock-models
+set -euo pipefail
+
+MAPPER_NAME="ai-models"
+MOUNT_POINT="/opt/ai/models"
+
+# Unmount if mounted
+if mountpoint -q "${MOUNT_POINT}" 2>/dev/null; then
+    echo "[lock-models] Unmounting ${MOUNT_POINT}..."
+    umount "${MOUNT_POINT}"
+    echo "[lock-models] Unmounted successfully."
+else
+    echo "[lock-models] ${MOUNT_POINT} is not currently mounted."
+fi
+
+# Close LUKS mapper if open
+if [[ -b "/dev/mapper/${MAPPER_NAME}" ]]; then
+    echo "[lock-models] Closing LUKS mapper: /dev/mapper/${MAPPER_NAME}"
+    cryptsetup luksClose "${MAPPER_NAME}"
+    echo "[lock-models] Vault locked."
+else
+    echo "[lock-models] LUKS mapper /dev/mapper/${MAPPER_NAME} is not open."
+fi
+
+echo "[lock-models] Model vault is now locked."

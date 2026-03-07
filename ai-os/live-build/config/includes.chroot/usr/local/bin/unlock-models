@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# unlock-models — Open the LUKS-encrypted AI model vault and mount it.
+# Usage: unlock-models [--keyfile /path/to/keyfile]
+#   The vault device is stored in /etc/ai-os/vault.conf (VAULT_DEVICE=...)
+#   Mount point: /opt/ai/models
+#   Mapper name: ai-models
+set -euo pipefail
+
+CONF_FILE="/etc/ai-os/vault.conf"
+MAPPER_NAME="ai-models"
+MOUNT_POINT="/opt/ai/models"
+KEYFILE=""
+
+# Parse optional --keyfile argument
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --keyfile)
+            KEYFILE="${2:?--keyfile requires a path argument}"
+            shift 2
+            ;;
+        *)
+            echo "[unlock-models] Unknown argument: $1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Load vault configuration
+if [[ ! -f "${CONF_FILE}" ]]; then
+    echo "[unlock-models] ERROR: Vault config not found: ${CONF_FILE}" >&2
+    echo "  Run 'setup-model-vault' first to initialise the vault." >&2
+    exit 1
+fi
+
+# shellcheck source=/dev/null
+source "${CONF_FILE}"
+
+if [[ -z "${VAULT_DEVICE:-}" ]]; then
+    echo "[unlock-models] ERROR: VAULT_DEVICE is not set in ${CONF_FILE}" >&2
+    exit 1
+fi
+
+# Check if already open
+if [[ -b "/dev/mapper/${MAPPER_NAME}" ]]; then
+    echo "[unlock-models] Mapper /dev/mapper/${MAPPER_NAME} already exists."
+else
+    echo "[unlock-models] Opening LUKS device: ${VAULT_DEVICE}"
+    if [[ -n "${KEYFILE}" ]]; then
+        if [[ ! -f "${KEYFILE}" ]]; then
+            echo "[unlock-models] ERROR: Keyfile not found: ${KEYFILE}" >&2
+            exit 1
+        fi
+        cryptsetup luksOpen --key-file "${KEYFILE}" "${VAULT_DEVICE}" "${MAPPER_NAME}"
+    else
+        cryptsetup luksOpen "${VAULT_DEVICE}" "${MAPPER_NAME}"
+    fi
+    echo "[unlock-models] LUKS device opened as /dev/mapper/${MAPPER_NAME}"
+fi
+
+# Mount if not already mounted
+if mountpoint -q "${MOUNT_POINT}"; then
+    echo "[unlock-models] ${MOUNT_POINT} is already mounted."
+else
+    install -d -m 0750 "${MOUNT_POINT}"
+    echo "[unlock-models] Mounting /dev/mapper/${MAPPER_NAME} -> ${MOUNT_POINT}"
+    mount /dev/mapper/${MAPPER_NAME} "${MOUNT_POINT}"
+    echo "[unlock-models] Model vault mounted at ${MOUNT_POINT}"
+fi

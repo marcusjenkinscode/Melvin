@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# 010-base-tuning.chroot — Live-build chroot hook: create AI-OS directory layout.
+# Runs inside the chroot during `lb build`.
+set -euo pipefail
+
+echo "[010-base-tuning] Creating AI-OS directory structure..."
+
+# AI model / workspace storage
+install -d -m 0750 /opt/ai/models
+install -d -m 0755 /opt/ai/workspaces
+
+# Module overlay mount points
+install -d -m 0755 /opt/modules
+install -d -m 0755 /mnt/modules
+
+echo "[010-base-tuning] Setting /opt/ai ownership to root..."
+chown -R root:root /opt/ai
+
+echo "[010-base-tuning] Directory layout complete."
+echo "  /opt/ai/models      — encrypted model vault mount point"
+echo "  /opt/ai/workspaces  — user AI workspaces"
+echo "  /opt/modules        — squashfs module images"
+echo "  /mnt/modules        — module overlay mount points"

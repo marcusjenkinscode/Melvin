@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# activate-module — Mount a squashfs module overlay.
+# Usage: activate-module <module-name>
+#   Module image expected at: /opt/modules/<name>.squashfs
+#   Mount point created at  : /mnt/modules/<name>
+set -euo pipefail
+
+MODULE_NAME="${1:?Usage: activate-module <module-name>}"
+IMAGE="/opt/modules/${MODULE_NAME}.squashfs"
+MOUNT_POINT="/mnt/modules/${MODULE_NAME}"
+
+if [[ ! -f "${IMAGE}" ]]; then
+    echo "[activate-module] ERROR: Module image not found: ${IMAGE}" >&2
+    exit 1
+fi
+
+if mountpoint -q "${MOUNT_POINT}" 2>/dev/null; then
+    echo "[activate-module] Module '${MODULE_NAME}' is already mounted at ${MOUNT_POINT}."
+    exit 0
+fi
+
+echo "[activate-module] Creating mount point: ${MOUNT_POINT}"
+install -d -m 0755 "${MOUNT_POINT}"
+
+echo "[activate-module] Mounting ${IMAGE} -> ${MOUNT_POINT} (ro, loop, squashfs)"
+mount -t squashfs -o ro,loop "${IMAGE}" "${MOUNT_POINT}"
+
+echo "[activate-module] Module '${MODULE_NAME}' activated successfully."
+echo "  Contents: $(ls "${MOUNT_POINT}" 2>/dev/null | tr '\n' ' ')"

@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# ai-profile — Configure AI hardware profile (cpu | nvidia | amd).
+# Usage: ai-profile {cpu|nvidia|amd}
+set -euo pipefail
+
+PROFILE="${1:?Usage: ai-profile {cpu|nvidia|amd}}"
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+install_ollama() {
+    if command -v ollama &>/dev/null; then
+        echo "[ai-profile] Ollama already installed: $(ollama --version 2>/dev/null)"
+        return
+    fi
+    echo "[ai-profile] Installing Ollama..."
+    curl -fsSL https://ollama.com/install.sh | sh
+    echo "[ai-profile] Ollama installed: $(ollama --version 2>/dev/null)"
+}
+
+# ── CPU profile ───────────────────────────────────────────────────────────────
+profile_cpu() {
+    echo "[ai-profile] Applying CPU-only profile..."
+
+    echo "[ai-profile] Installing minimal Python tooling..."
+    apt-get install -y python3 python3-pip python3-venv >/dev/null
+
+    install_ollama
+
+    echo ""
+    echo "[ai-profile] CPU profile active."
+    echo "  Recommended models: tinyllama, phi3, mistral:7b-instruct-q4"
+    echo "  Run: ollama pull tinyllama"
+}
+
+# ── NVIDIA profile ────────────────────────────────────────────────────────────
+profile_nvidia() {
+    echo "[ai-profile] Applying NVIDIA GPU profile..."
+
+    echo "[ai-profile] Installing ubuntu-drivers-common..."
+    apt-get install -y ubuntu-drivers-common >/dev/null
+
+    echo "[ai-profile] Running ubuntu-drivers autoinstall..."
+    ubuntu-drivers autoinstall
+
+    install_ollama
+
+    echo ""
+    echo "[ai-profile] NVIDIA profile applied."
+    echo "  NOTE: A reboot is required for the new GPU driver to take effect."
+    echo "  After reboot, verify with: nvidia-smi"
+    echo "  Then run Ollama with GPU: ollama run llama3"
+}
+
+# ── AMD profile ───────────────────────────────────────────────────────────────
+profile_amd() {
+    echo "[ai-profile] Applying AMD ROCm guidance..."
+    echo ""
+    echo "  AMD ROCm support varies significantly by GPU generation and kernel version."
+    echo "  Automated installation is intentionally conservative to avoid instability."
+    echo ""
+    echo "  Recommended manual steps:"
+    echo "  1. Check your GPU is ROCm-supported:"
+    echo "       https://rocm.docs.amd.com/en/latest/release/gpu_os_support.html"
+    echo "  2. Install ROCm following the official guide for Ubuntu 24.04:"
+    echo "       https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html"
+    echo "  3. After ROCm is installed, install Ollama (ROCm edition):"
+    echo "       curl -fsSL https://ollama.com/install.sh | sh"
+    echo "  4. Verify GPU is detected:"
+    echo "       rocm-smi"
+    echo ""
+    echo "  No changes were made to this system."
+}
+
+# ── Dispatch ──────────────────────────────────────────────────────────────────
+if [[ "${EUID}" -ne 0 ]] && [[ "${PROFILE}" != "amd" ]]; then
+    echo "[ai-profile] ERROR: Must be run as root for profile '${PROFILE}'." >&2
+    exit 1
+fi
+
+case "${PROFILE}" in
+    cpu)    profile_cpu ;;
+    nvidia) profile_nvidia ;;
+    amd)    profile_amd ;;
+    *)
+        echo "[ai-profile] ERROR: Unknown profile '${PROFILE}'." >&2
+        echo "  Valid profiles: cpu, nvidia, amd" >&2
+        exit 1
+        ;;
+esac

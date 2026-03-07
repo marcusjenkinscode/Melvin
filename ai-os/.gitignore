@@ -1,0 +1,35 @@
+# Build artifacts
+live-build/.build/
+live-build/binary/
+live-build/binary.iso
+live-build/chroot/
+live-build/cache/
+live-build/*.log
+*.squashfs
+*.img
+*.iso
+
+# Module roots (populated at build time)
+modules/root-ai-tools/*
+modules/root-dev-tools/*
+!modules/root-ai-tools/.gitkeep
+!modules/root-dev-tools/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Secrets / keys
+*.key
+*.luks
+*.keyfile
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

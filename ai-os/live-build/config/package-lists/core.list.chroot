@@ -1,0 +1,46 @@
+# core.list.chroot — Minimal base package list for AI-OS chroot.
+# Only essential packages; optional layers are loaded via squashfs modules.
+
+# Base system utilities
+bash
+coreutils
+util-linux
+procps
+systemd
+systemd-sysv
+
+# Networking
+iproute2
+iputils-ping
+curl
+wget
+ca-certificates
+
+# Disk / filesystem tools
+e2fsprogs
+dosfstools
+cryptsetup
+squashfs-tools
+
+# Package management
+apt
+apt-utils
+
+# Security
+openssh-client
+ufw
+fail2ban
+
+# Python (minimal)
+python3
+python3-pip
+python3-venv
+
+# Diagnostics
+htop
+less
+lsof
+strace
+rsync
+jq
+git

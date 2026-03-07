@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# deactivate-module — Unmount a squashfs module overlay.
+# Usage: deactivate-module <module-name>
+set -euo pipefail
+
+MODULE_NAME="${1:?Usage: deactivate-module <module-name>}"
+MOUNT_POINT="/mnt/modules/${MODULE_NAME}"
+
+if ! mountpoint -q "${MOUNT_POINT}" 2>/dev/null; then
+    echo "[deactivate-module] Module '${MODULE_NAME}' is not currently mounted."
+    exit 0
+fi
+
+echo "[deactivate-module] Unmounting ${MOUNT_POINT}..."
+umount "${MOUNT_POINT}"
+
+echo "[deactivate-module] Removing mount point directory..."
+rmdir "${MOUNT_POINT}" 2>/dev/null || true
+
+echo "[deactivate-module] Module '${MODULE_NAME}' deactivated successfully."

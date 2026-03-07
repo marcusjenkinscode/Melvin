@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# ai-benchmark — Collect system info and run optional AI inference timing.
+# Usage: ai-benchmark [--inference]
+set -euo pipefail
+
+RUN_INFERENCE=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --inference) RUN_INFERENCE=true; shift ;;
+        *) echo "[ai-benchmark] Unknown argument: $1" >&2; exit 1 ;;
+    esac
+done
+
+echo "========================================="
+echo " AI-OS System Benchmark"
+echo " $(date)"
+echo "========================================="
+
+# ── CPU ───────────────────────────────────────────────────────────────────────
+echo ""
+echo "--- CPU ---"
+lscpu | grep -E "^(Model name|Architecture|CPU\(s\)|Thread|Core|Socket|CPU MHz|NUMA)" || true
+
+# ── RAM ───────────────────────────────────────────────────────────────────────
+echo ""
+echo "--- Memory ---"
+free -h
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+echo ""
+echo "--- Storage ---"
+df -hT | grep -v "^tmpfs\|^udev\|^devtmpfs" || true
+
+# ── Mounts ────────────────────────────────────────────────────────────────────
+echo ""
+echo "--- Active AI-OS Mounts ---"
+mount | grep -E "(squashfs|ai-models|/opt/ai|/mnt/modules)" || echo "  (none)"
+
+# ── Ollama ────────────────────────────────────────────────────────────────────
+echo ""
+echo "--- Ollama ---"
+if command -v ollama &>/dev/null; then
+    OLLAMA_VER=$(ollama --version 2>/dev/null || echo "unknown")
+    echo "  Installed: yes"
+    echo "  Version  : ${OLLAMA_VER}"
+else
+    echo "  Installed: no (run 'ai-profile cpu' or 'ai-profile nvidia' to install)"
+fi
+
+# ── GPU ───────────────────────────────────────────────────────────────────────
+echo ""
+echo "--- GPU ---"
+if command -v nvidia-smi &>/dev/null; then
+    nvidia-smi --query-gpu=name,memory.total,driver_version \
+               --format=csv,noheader 2>/dev/null || echo "  nvidia-smi failed"
+elif command -v rocm-smi &>/dev/null; then
+    rocm-smi --showname --showmeminfo vram 2>/dev/null || echo "  rocm-smi failed"
+else
+    echo "  No GPU management tool detected (nvidia-smi / rocm-smi)"
+fi
+
+# ── Optional inference timing ─────────────────────────────────────────────────
+if [[ "${RUN_INFERENCE}" == "true" ]]; then
+    echo ""
+    echo "--- Inference Timing (tiny test) ---"
+    if command -v ollama &>/dev/null && ollama list 2>/dev/null | grep -q .; then
+        MODEL=$(ollama list 2>/dev/null | awk 'NR==2{print $1}')
+        echo "  Using model: ${MODEL}"
+        START_NS=$(date +%s%N)
+        ollama run "${MODEL}" "Hello" --nowordwrap 2>/dev/null | head -c 200
+        END_NS=$(date +%s%N)
+        ELAPSED_MS=$(( (END_NS - START_NS) / 1000000 ))
+        echo ""
+        echo "  Elapsed: ${ELAPSED_MS} ms"
+    else
+        echo "  No Ollama models available for timing test."
+        echo "  Pull a model first: ollama pull tinyllama"
+    fi
+fi
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+echo ""
+echo "========================================="
+echo " Recommendations"
+echo "========================================="
+TOTAL_MEM_GB=$(awk '/MemTotal/ {printf "%.0f", $2/1024/1024}' /proc/meminfo)
+if (( TOTAL_MEM_GB < 8 )); then
+    echo "  [WARN] Less than 8 GB RAM — only tiny models recommended."
+elif (( TOTAL_MEM_GB < 16 )); then
+    echo "  [OK]   8-15 GB RAM — 7B parameter models should work."
+else
+    echo "  [GOOD] 16+ GB RAM — larger models (13B+) should be viable."
+fi
+
+if command -v ollama &>/dev/null; then
+    echo "  [OK]   Ollama is installed."
+else
+    echo "  [MISSING] Ollama not installed. Run: ai-profile cpu"
+fi
+
+echo ""

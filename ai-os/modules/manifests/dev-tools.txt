@@ -1,0 +1,13 @@
+# dev-tools module manifest
+# Expected contents of the dev-tools squashfs overlay module.
+
+/opt/dev-tools/
+/opt/dev-tools/README.md
+/opt/dev-tools/bin/
+/opt/dev-tools/bin/dev-tools-info
+/opt/dev-tools/share/
+
+# Optional (populated during custom builds):
+# /opt/dev-tools/bin/nvim
+# /opt/dev-tools/bin/lazygit
+# /opt/dev-tools/share/nvim/
