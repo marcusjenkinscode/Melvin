@@ -55,6 +55,10 @@ MEMORY_CHUNK_BASENAME = "MemoryChunk"
 # How many recent conversation turns to send as context to the model
 MAX_CONTEXT_TURNS = 20
 
+# Maximum number of memory snapshots injected into the context per session.
+# Older snapshots beyond this limit are omitted to keep context size manageable.
+MAX_MEMORY_SNAPSHOTS = 10
+
 # System prompt that shapes Melvin's personality
 SYSTEM_PROMPT = (
     "You are Melvin, a helpful, knowledgeable, and concise AI assistant. "

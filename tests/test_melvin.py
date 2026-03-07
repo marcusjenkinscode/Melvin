@@ -92,10 +92,16 @@ class TestExtractKeyPoints:
         response = "Just a plain text response"
         with self._make_chat_mock(response):
             points = melvin._extract_key_points("phi3:mini", [])
-        assert points == ["Just a plain text response"]
+        assert points == ["(no key points extracted)"]
 
     def test_returns_fallback_for_empty_response(self):
         with self._make_chat_mock(""):
+            points = melvin._extract_key_points("phi3:mini", [])
+        assert points == ["(no key points extracted)"]
+
+    def test_returns_fallback_for_error_response(self):
+        response = "[Error] Could not reach Ollama. Make sure it is running: ollama serve"
+        with self._make_chat_mock(response):
             points = melvin._extract_key_points("phi3:mini", [])
         assert points == ["(no key points extracted)"]
 
@@ -121,10 +127,11 @@ class TestBuildContext:
         memories = [{"key_points": ["User is a Python dev"], "prompt_range": [1, 100], "timestamp": "2024-01-01"}]
         chat = self._make_chat(tmp_path, memories=memories)
         ctx = chat._build_context()
-        # Should have system prompt + memory system message
+        # System prompt only; memory is injected as assistant role
         roles = [m["role"] for m in ctx]
-        assert roles.count("system") == 2
-        combined = " ".join(m["content"] for m in ctx if m["role"] == "system")
+        assert roles.count("system") == 1
+        assert "assistant" in roles
+        combined = " ".join(m["content"] for m in ctx)
         assert "User is a Python dev" in combined
 
     def test_no_memory_injection_when_empty(self, tmp_path):

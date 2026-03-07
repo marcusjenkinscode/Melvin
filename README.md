@@ -3,7 +3,7 @@
 A local, private LLM chatbot that:
 
 * **runs completely offline** – powered by [Ollama](https://ollama.com) and the best free open-source models
-* **learns from every conversation** – after every 100 prompts the key points of your chat are automatically extracted by the model itself, compressed with `zlib`, and encrypted with AES-128 (Fernet) before being stored to disk
+* **learns from every conversation** – after every 100 prompts the key points of your chat are automatically extracted by the model itself, compressed with `zlib`, and encrypted with Fernet (AES-128-CBC + HMAC) before being stored to disk
 * **remembers across sessions** – on each start-up Melvin loads all past memory snapshots and feeds the key points back into the model as context
 * **works on Android / Termux** – designed for ARM64 devices with limited RAM; defaults to `phi3:mini` (≈2.3 GB)
 
