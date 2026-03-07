@@ -1,0 +1,14 @@
+# ai-tools module manifest
+# Expected contents of the ai-tools squashfs overlay module.
+
+/opt/ai-tools/
+/opt/ai-tools/README.md
+/opt/ai-tools/bin/
+/opt/ai-tools/bin/ai-tools-info
+/opt/ai-tools/models/
+/opt/ai-tools/venv/
+
+# Optional (populated during custom builds):
+# /opt/ai-tools/venv/lib/python3.*/site-packages/torch/
+# /opt/ai-tools/venv/lib/python3.*/site-packages/transformers/
+# /opt/ai-tools/venv/bin/python3

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# live-build/auto/config — Automatic live-build configuration.
+# Invoked automatically by `lb config`.
+set -euo pipefail
+
+lb config noauto \
+    --mode ubuntu \
+    --distribution noble \
+    --architecture amd64 \
+    --binary-images iso-hybrid \
+    --debian-installer live \
+    --apt-recommends false \
+    --apt-indices false \
+    --memtest none \
+    --archive-areas "main restricted universe multiverse" \
+    --bootappend-live "boot=live components quiet splash" \
+    "${@}"
