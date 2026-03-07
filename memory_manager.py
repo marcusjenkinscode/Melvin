@@ -12,15 +12,14 @@ Each MemoryChunk*.json file has this top-level structure:
                 "id":           <int>,
                 "timestamp":    "<ISO-8601>",
                 "prompt_range": [<start>, <end>],
-                "data":         "<base64-encoded zlib+Fernet blob>"
+                "data":         "<Fernet token (URL-safe base64)>"
             },
             ...
         ]
     }
 
-The "data" field contains a base64url-encoded string that decodes to a
-Fernet-encrypted payload; decrypting that yields zlib-compressed UTF-8 JSON
-with the following structure:
+The "data" field is a Fernet token (URL-safe base64 string).  Decrypting it
+yields zlib-compressed UTF-8 JSON with the following structure:
 
     {
         "key_points":            ["..."],
@@ -30,7 +29,12 @@ with the following structure:
 Encryption key
 --------------
 A single 32-byte Fernet key is stored in `melvin.key` (path configured in
-config.py).  Keep this file safe – without it the chunks cannot be decrypted.
+config.py).  The file is created with owner-read/write-only permissions
+(0o600).  Keep this file safe – without it the chunks cannot be decrypted.
+
+Encryption algorithm
+--------------------
+Fernet uses AES-128-CBC + HMAC-SHA256.
 
 File rolling
 ------------
@@ -49,7 +53,7 @@ import zlib
 from pathlib import Path
 from typing import Any
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 import config
 
@@ -73,6 +77,9 @@ class MemoryManager:
         self.max_chunk_bytes = max_chunk_bytes
         self.basename = basename
 
+        # Ensure the memory directory exists before attempting key I/O
+        self.memory_dir.mkdir(parents=True, exist_ok=True)
+
         self._key = self._load_or_create_key()
         self._fernet = Fernet(self._key)
 
@@ -81,11 +88,18 @@ class MemoryManager:
     # ------------------------------------------------------------------
 
     def _load_or_create_key(self) -> bytes:
-        """Return the existing Fernet key or generate (and persist) a new one."""
+        """Return the existing Fernet key or generate (and persist) a new one.
+
+        The key file is created with owner-read/write-only permissions (0o600)
+        to prevent other local users from reading it on multi-user systems.
+        """
         if self.key_path.exists():
             return self.key_path.read_bytes()
         key = Fernet.generate_key()
-        self.key_path.write_bytes(key)
+        # Create with restrictive permissions: owner read/write only
+        fd = os.open(str(self.key_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(key)
         return key
 
     # ------------------------------------------------------------------
@@ -93,16 +107,26 @@ class MemoryManager:
     # ------------------------------------------------------------------
 
     def _pack(self, payload: dict[str, Any]) -> str:
-        """Serialize *payload* → JSON → zlib-compress → Fernet-encrypt → base64url."""
+        """Serialize *payload* -> JSON -> zlib-compress -> Fernet-encrypt (URL-safe token)."""
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         compressed = zlib.compress(raw, level=9)
         encrypted = self._fernet.encrypt(compressed)
-        return base64.urlsafe_b64encode(encrypted).decode("ascii")
+        return encrypted.decode("ascii")
 
     def _unpack(self, encoded: str) -> dict[str, Any]:
-        """Reverse of :meth:`_pack`."""
-        encrypted = base64.urlsafe_b64decode(encoded.encode("ascii"))
-        compressed = self._fernet.decrypt(encrypted)
+        """Reverse of :meth:`_pack`.
+
+        Supports both the current direct-Fernet-token format and the legacy
+        double-base64-encoded format for backward compatibility.
+        """
+        token = encoded.encode("ascii")
+        try:
+            # Preferred path: encoded is the Fernet token itself.
+            compressed = self._fernet.decrypt(token)
+        except InvalidToken:
+            # Backward compatibility: encoded is base64(Fernet token).
+            encrypted = base64.urlsafe_b64decode(token)
+            compressed = self._fernet.decrypt(encrypted)
         raw = zlib.decompress(compressed)
         return json.loads(raw.decode("utf-8"))
 
@@ -119,19 +143,20 @@ class MemoryManager:
         )
         return self.memory_dir / name
 
-    def _current_chunk_path(self) -> Path:
+    def _current_chunk_path(self, new_entry_bytes: int = 0) -> Path:
         """
         Return the chunk file that should receive the next entry.
 
         Walks the numbered sequence until it finds a file that either
-        does not exist yet or is still under the size limit.
+        does not exist yet or would still be under the size limit after
+        the new entry (*new_entry_bytes*) is appended.
         """
         index = 1
         while True:
             path = self._chunk_path(index)
             if not path.exists():
                 return path
-            if path.stat().st_size < self.max_chunk_bytes:
+            if path.stat().st_size + new_entry_bytes < self.max_chunk_bytes:
                 return path
             index += 1
 
@@ -184,7 +209,9 @@ class MemoryManager:
         }
         packed = self._pack(payload)
 
-        chunk_path = self._current_chunk_path()
+        # Estimate bytes the new entry will add (packed string + JSON wrapper overhead)
+        estimated_new_bytes = len(packed.encode("utf-8")) + 256
+        chunk_path = self._current_chunk_path(estimated_new_bytes)
         chunk_data = self._load_chunk_file(chunk_path)
 
         chunk_data["chunks"].append(

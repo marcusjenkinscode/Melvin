@@ -17,6 +17,8 @@ import pytest
 # Ensure the repo root is on sys.path so we can import project modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from cryptography.fernet import InvalidToken
+
 from memory_manager import MemoryManager
 
 # ---------------------------------------------------------------------------
@@ -89,7 +91,7 @@ class TestPackUnpack:
         packed = mgr1._pack({"x": 1})
 
         mgr2 = MemoryManager(memory_dir=str(dir_b), key_file="k.key")
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidToken):
             mgr2._unpack(packed)
 
 

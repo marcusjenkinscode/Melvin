@@ -66,15 +66,17 @@ esac
 if [ -n "$OLLAMA_TARBALL" ]; then
     OLLAMA_URL="https://github.com/ollama/ollama/releases/latest/download/${OLLAMA_TARBALL}.tgz"
     INSTALL_DIR="$PREFIX/bin"
+    # On Termux, /tmp may not exist; use $TMPDIR if set, else the Termux default
+    WORK_TMP="${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
 
     echo "  Downloading $OLLAMA_TARBALL…"
-    curl -fsSL "$OLLAMA_URL" | tar -xz -C /tmp
-    if mv /tmp/ollama "$INSTALL_DIR/ollama"; then
+    curl -fsSL "$OLLAMA_URL" | tar -xz -C "$WORK_TMP"
+    if mv "$WORK_TMP/ollama" "$INSTALL_DIR/ollama"; then
         chmod +x "$INSTALL_DIR/ollama"
         echo "  Ollama installed → $INSTALL_DIR/ollama"
     else
         echo "  [!] Failed to move Ollama binary to $INSTALL_DIR."
-        echo "      Try:  mv /tmp/ollama $INSTALL_DIR/ollama"
+        echo "      Try:  mv $WORK_TMP/ollama $INSTALL_DIR/ollama"
         OLLAMA_TARBALL=""
     fi
 fi
@@ -84,7 +86,8 @@ fi
 # ------------------------------------------------------------
 echo ""
 echo "▶  Starting Ollama server in the background…"
-ollama serve &>/tmp/ollama_setup.log &
+SETUP_LOG="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/ollama_setup.log"
+ollama serve >"$SETUP_LOG" 2>&1 &
 OLLAMA_PID=$!
 
 # Wait until Ollama is accepting connections (up to 30 s)
@@ -101,7 +104,7 @@ done
 echo ""
 if [ "$READY" -ne 1 ]; then
     echo "  [!] Ollama did not start within 30 seconds."
-    echo "      Check /tmp/ollama_setup.log for details."
+    echo "      Check $SETUP_LOG for details."
     echo "      You can start it manually later: ollama serve &"
 fi
 
