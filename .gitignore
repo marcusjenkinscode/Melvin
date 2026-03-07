@@ -1,0 +1,20 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Melvin runtime files (generated at runtime, not source code)
+melvin.key
+MemoryChunk*.json
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
