@@ -17,8 +17,12 @@ Type  /help  inside the chat to see available commands.
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
 import sys
 import textwrap
+import time
 from typing import Any
 
 import requests
@@ -31,7 +35,6 @@ from memory_manager import MemoryManager
 # ---------------------------------------------------------------------------
 
 try:
-    import shutil
     _COLS = shutil.get_terminal_size(fallback=(80, 24)).columns
 except Exception:
     _COLS = 80
@@ -70,6 +73,62 @@ def _ollama_tags() -> list[str]:
         return [m["name"] for m in r.json().get("models", [])]
     except Exception:
         return []
+
+
+def _is_ollama_reachable() -> bool:
+    """Return True if the Ollama API responds."""
+    try:
+        r = requests.get(f"{config.OLLAMA_BASE_URL}/api/tags", timeout=3)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+def _start_ollama() -> bool:
+    """
+    Try to start ``ollama serve`` in the background.
+
+    Returns True if Ollama becomes reachable within a short timeout,
+    or if it was already running.  Returns False on failure.
+    """
+    if _is_ollama_reachable():
+        return True
+
+    ollama_bin = shutil.which("ollama")
+    if not ollama_bin:
+        return False
+
+    try:
+        subprocess.Popen(
+            [ollama_bin, "serve"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError:
+        return False
+
+    # Poll until Ollama is accepting connections (up to 15 s)
+    for _ in range(30):
+        time.sleep(0.5)
+        if _is_ollama_reachable():
+            return True
+    return False
+
+
+def _pull_model(model_name: str) -> bool:
+    """Pull an Ollama model, showing progress to the user."""
+    ollama_bin = shutil.which("ollama")
+    if not ollama_bin:
+        return False
+    try:
+        proc = subprocess.run(
+            [ollama_bin, "pull", model_name],
+            timeout=600,
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
 
 
 def _choose_model() -> str | None:
@@ -231,18 +290,52 @@ class MelvinChat:
         """Entry point – initialise and run the REPL."""
         self._print_banner()
 
-        # Find a usable model
+        # --- Ollama connectivity ------------------------------------
         print(_c(_YELLOW, "⟳  Connecting to Ollama…"), end="\r")
-        self.model = _choose_model()
+        if not _is_ollama_reachable():
+            print(_c(_YELLOW, "⟳  Ollama not running – attempting to start it…"))
+            if _start_ollama():
+                print(_c(_GREEN, "✓  Ollama started successfully.              "))
+            else:
+                print(
+                    _c(_RED, "✗  Could not start Ollama automatically.\n")
+                    + "\n  Make sure Ollama is installed:\n"
+                    + "    https://ollama.com/download\n"
+                    + "\n  Then start it manually:\n"
+                    + "    ollama serve\n"
+                )
+                sys.exit(1)
+        else:
+            print(_c(_GREEN, "✓  Ollama is running.                       "))
 
+        # --- Model selection ----------------------------------------
+        available = _ollama_tags()
+
+        if not available:
+            print(_c(_YELLOW, "\n  No models are installed locally."))
+            print(_c(_BOLD, "  Which model would you like to pull?\n"))
+            for i, name in enumerate(config.PREFERRED_MODELS, 1):
+                print(f"    {i}) {name}")
+            print(f"    {len(config.PREFERRED_MODELS) + 1}) Enter a custom model name")
+            print()
+
+            model_to_pull = self._prompt_model_choice()
+            if model_to_pull is None:
+                print(_c(_RED, "  No model selected. Exiting.\n"))
+                sys.exit(1)
+
+            print(_c(_YELLOW, f"\n⟳  Pulling {model_to_pull} (this may take several minutes)…\n"))
+            if _pull_model(model_to_pull):
+                print(_c(_GREEN, f"\n✓  Model {model_to_pull} is ready."))
+            else:
+                print(_c(_RED, f"\n✗  Failed to pull {model_to_pull}."))
+                print("  You can pull a model manually:  ollama pull phi3:mini\n")
+                sys.exit(1)
+
+        # Choose the best available model
+        self.model = _choose_model()
         if self.model is None:
-            print(
-                _c(_RED, "✗  Ollama is not reachable or no models are installed.\n")
-                + "\nTo install Ollama and pull a model:\n"
-                + "  pkg install ollama          # Termux\n"
-                + "  ollama pull phi3:mini\n"
-                + "  ollama serve\n"
-            )
+            print(_c(_RED, "✗  No usable model found.\n"))
             sys.exit(1)
 
         print(_c(_GREEN, f"✓  Using model: {self.model}          "))
@@ -257,6 +350,34 @@ class MelvinChat:
         print()
 
         self._repl()
+
+    # ------------------------------------------------------------------
+    # Interactive helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _prompt_model_choice() -> str | None:
+        """Prompt the user to pick a model to pull. Returns the name or None."""
+        n_preferred = len(config.PREFERRED_MODELS)
+        try:
+            raw = input(_c(_BOLD + _CYAN, "  Choice [1]: ")).strip()
+        except (EOFError, KeyboardInterrupt):
+            return None
+
+        if raw == "":
+            raw = "1"
+
+        if raw.isdigit():
+            idx = int(raw)
+            if 1 <= idx <= n_preferred:
+                return config.PREFERRED_MODELS[idx - 1]
+            if idx == n_preferred + 1:
+                try:
+                    custom = input(_c(_CYAN, "  Model name: ")).strip()
+                except (EOFError, KeyboardInterrupt):
+                    return None
+                return custom if custom else None
+        return None
 
     # ------------------------------------------------------------------
     # REPL
