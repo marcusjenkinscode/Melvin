@@ -40,14 +40,34 @@ python melvin.py
 
 ---
 
-## Quick start – Termux (Android)
+## Quick start – Ubuntu / Linux
 
 ```bash
-# Clone this repo inside Termux, then:
+# Clone this repo, then:
 chmod +x setup.sh
 ./setup.sh          # installs Ollama, Python deps, and pulls phi3:mini
 
 # After setup completes:
+ollama serve &
+python3 melvin.py
+```
+
+---
+
+## Quick start – Termux (Android)
+
+> **Note:** `setup.sh` targets Ubuntu/Linux. For Termux, follow the manual steps below using `pkg` instead of `apt-get`.
+
+```bash
+# Inside Termux:
+pkg update -y && pkg upgrade -y
+pkg install -y python python-pip clang libffi openssl git curl
+
+pip install -r requirements.txt
+
+# Install Ollama manually from https://ollama.com, then:
+ollama serve &
+python melvin.py
 melvin              # if you chose the system-wide install
 python melvin.py    # otherwise
 ```
@@ -111,7 +131,7 @@ memory_manager.py   # MemoryChunk read/write, encryption, file rolling
 config.py           # All tunable settings in one place
 pyproject.toml      # Python packaging (pip install .)
 requirements.txt    # Python dependencies
-setup.sh            # One-shot Termux/Android setup script
+setup.sh            # One-shot Ubuntu/Linux setup script
 tests/
   test_memory_manager.py   # Unit tests (no Ollama needed)
   test_melvin.py           # Unit tests with mocked HTTP

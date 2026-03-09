@@ -1,8 +1,8 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/bin/bash
 # ============================================================
-# setup.sh – one-shot Termux / Android setup for Melvin
+# setup.sh – one-shot Ubuntu / Linux setup for Melvin
 # ============================================================
-# Usage (inside Termux):
+# Usage:
 #   chmod +x setup.sh
 #   ./setup.sh
 # ============================================================
@@ -14,35 +14,68 @@ cd "$SCRIPT_DIR"
 
 echo ""
 echo "╔══════════════════════════════════════════╗"
-echo "║    Melvin – Termux Setup                 ║"
+echo "║    Melvin – Ubuntu Setup                 ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 
 # ------------------------------------------------------------
-# 1. Update Termux packages
+# 1. Update apt packages
 # ------------------------------------------------------------
 echo "▶  Updating package list…"
-pkg update -y && pkg upgrade -y
+sudo apt-get update -y && sudo apt-get upgrade -y
 
 # ------------------------------------------------------------
 # 2. Install system deps
 # ------------------------------------------------------------
 echo ""
 echo "▶  Installing system packages…"
-pkg install -y python python-pip clang libffi openssl git
+sudo apt-get install -y python3 python3-pip build-essential libffi-dev libssl-dev git curl
 
 # ------------------------------------------------------------
 # 3. Install Python deps
 # ------------------------------------------------------------
 echo ""
 echo "▶  Installing Python dependencies…"
-pip install --upgrade pip
-pip install -r requirements.txt
+pip3 install --upgrade pip --user
+pip3 install --user -r requirements.txt
 
 # ------------------------------------------------------------
 # 4. Install Ollama (if not already present)
 # ------------------------------------------------------------
 echo ""
+echo "▶  Installing Ollama…"
+
+ARCH="$(uname -m)"
+case "$ARCH" in
+    aarch64 | arm64)
+        OLLAMA_TARBALL="ollama-linux-arm64"
+        ;;
+    armv7l | armhf)
+        OLLAMA_TARBALL="ollama-linux-arm"
+        ;;
+    x86_64)
+        OLLAMA_TARBALL="ollama-linux-amd64"
+        ;;
+    *)
+        echo "  [!] Unsupported architecture: $ARCH"
+        echo "  Please install Ollama manually from https://ollama.com"
+        OLLAMA_TARBALL=""
+        ;;
+esac
+
+if [ -n "$OLLAMA_TARBALL" ]; then
+    OLLAMA_URL="https://github.com/ollama/ollama/releases/latest/download/${OLLAMA_TARBALL}.tgz"
+    INSTALL_DIR="/usr/local/bin"
+
+    echo "  Downloading $OLLAMA_TARBALL…"
+    curl -fsSL "$OLLAMA_URL" | tar -xz -C /tmp
+    if sudo mv /tmp/ollama "$INSTALL_DIR/ollama"; then
+        sudo chmod +x "$INSTALL_DIR/ollama"
+        echo "  Ollama installed → $INSTALL_DIR/ollama"
+    else
+        echo "  [!] Failed to move Ollama binary to $INSTALL_DIR."
+        echo "      Try:  mv /tmp/ollama $INSTALL_DIR/ollama"
+        OLLAMA_TARBALL=""
 if command -v ollama &>/dev/null; then
     echo "▶  Ollama is already installed. Skipping download."
 else
@@ -162,9 +195,10 @@ echo "║    Setup complete!                        ║"
 echo "╠══════════════════════════════════════════╣"
 if [ -n "$PULLED" ]; then
     echo "║  Model pulled : $PULLED"
-fi
-echo "║"
+fiecho "║"
 echo "║  To start Melvin:"
+echo "║    ollama serve &    # (if not already running)"
+echo "║    python3 melvin.py"
 echo "║    melvin               # if installed system-wide"
 echo "║    python melvin.py     # otherwise"
 echo "╚══════════════════════════════════════════╝"
