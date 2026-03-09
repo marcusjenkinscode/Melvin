@@ -13,6 +13,11 @@ env/
 melvin.key
 MemoryChunk*.json
 
+# Packaging
+*.egg-info/
+dist/
+build/
+
 # Editor / OS
 .DS_Store
 *.swp

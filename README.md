@@ -15,16 +15,26 @@ A local, private LLM chatbot that:
 # 1. Install Ollama  (https://ollama.com/download)
 curl -fsSL https://ollama.com/install.sh | sh
 
-# 2. Pull a model (one-time download)
-ollama pull phi3:mini      # ~2.3 GB, very capable
+# 2. Clone this repo
+git clone https://github.com/marcusjenkinscode/Melvin.git
+cd Melvin
 
-# 3. Start the Ollama server (in a separate terminal or background)
-ollama serve &
+# 3. Install Melvin (adds the 'melvin' command)
+pip install .
 
-# 4. Install Python dependencies
+# 4. Run Melvin (Ollama starts automatically if needed)
+melvin
+```
+
+Melvin will auto-start Ollama if it isn't already running and
+interactively offer to download a model when none are installed.
+
+### Running without installing
+
+If you prefer not to install system-wide you can run directly:
+
+```bash
 pip install -r requirements.txt
-
-# 5. Chat!
 python melvin.py
 ```
 
@@ -38,9 +48,12 @@ chmod +x setup.sh
 ./setup.sh          # installs Ollama, Python deps, and pulls phi3:mini
 
 # After setup completes:
-ollama serve &
-python melvin.py
+melvin              # if you chose the system-wide install
+python melvin.py    # otherwise
 ```
+
+The setup script will ask whether you want to install the `melvin`
+command system-wide.  You can always do this later with `pip install .`.
 
 ---
 
@@ -85,7 +98,7 @@ To switch models, pull the one you want and restart Melvin:
 
 ```bash
 ollama pull gemma2:2b
-python melvin.py
+melvin
 ```
 
 ---
@@ -96,6 +109,7 @@ python melvin.py
 melvin.py           # Main chatbot – Ollama API, REPL, snapshot trigger
 memory_manager.py   # MemoryChunk read/write, encryption, file rolling
 config.py           # All tunable settings in one place
+pyproject.toml      # Python packaging (pip install .)
 requirements.txt    # Python dependencies
 setup.sh            # One-shot Termux/Android setup script
 tests/
