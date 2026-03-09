@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "melvin"
+version = "1.0.0"
+description = "Local LLM chatbot with persistent encrypted memory"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.28.0",
+    "cryptography>=41.0.0",
+]
+
+[project.scripts]
+melvin = "melvin:main"
+
+[tool.setuptools]
+py-modules = ["melvin", "config", "memory_manager"]

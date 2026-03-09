@@ -20,6 +20,115 @@ import melvin
 
 
 # ---------------------------------------------------------------------------
+# _is_ollama_reachable
+# ---------------------------------------------------------------------------
+
+class TestIsOllamaReachable:
+    def test_returns_true_when_api_responds(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        with patch("melvin.requests.get", return_value=mock_resp):
+            assert melvin._is_ollama_reachable() is True
+
+    def test_returns_false_on_connection_error(self):
+        with patch("melvin.requests.get", side_effect=ConnectionError):
+            assert melvin._is_ollama_reachable() is False
+
+    def test_returns_false_on_non_200(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 500
+        with patch("melvin.requests.get", return_value=mock_resp):
+            assert melvin._is_ollama_reachable() is False
+
+
+# ---------------------------------------------------------------------------
+# _start_ollama
+# ---------------------------------------------------------------------------
+
+class TestStartOllama:
+    def test_returns_true_if_already_reachable(self):
+        with patch("melvin._is_ollama_reachable", return_value=True):
+            assert melvin._start_ollama() is True
+
+    def test_returns_false_when_binary_not_found(self):
+        with (
+            patch("melvin._is_ollama_reachable", return_value=False),
+            patch("melvin.shutil.which", return_value=None),
+        ):
+            assert melvin._start_ollama() is False
+
+    def test_starts_ollama_and_waits(self):
+        call_count = {"n": 0}
+
+        def reachable_after_two():
+            call_count["n"] += 1
+            return call_count["n"] > 2
+
+        with (
+            patch("melvin._is_ollama_reachable", side_effect=reachable_after_two),
+            patch("melvin.shutil.which", return_value="/usr/bin/ollama"),
+            patch("melvin.subprocess.Popen"),
+            patch("melvin.time.sleep"),
+        ):
+            assert melvin._start_ollama() is True
+
+
+# ---------------------------------------------------------------------------
+# _pull_model
+# ---------------------------------------------------------------------------
+
+class TestPullModel:
+    def test_returns_false_when_binary_not_found(self):
+        with patch("melvin.shutil.which", return_value=None):
+            assert melvin._pull_model("phi3:mini") is False
+
+    def test_returns_true_on_success(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        with (
+            patch("melvin.shutil.which", return_value="/usr/bin/ollama"),
+            patch("melvin.subprocess.run", return_value=mock_result),
+        ):
+            assert melvin._pull_model("phi3:mini") is True
+
+    def test_returns_false_on_failure(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        with (
+            patch("melvin.shutil.which", return_value="/usr/bin/ollama"),
+            patch("melvin.subprocess.run", return_value=mock_result),
+        ):
+            assert melvin._pull_model("phi3:mini") is False
+
+
+# ---------------------------------------------------------------------------
+# MelvinChat._prompt_model_choice
+# ---------------------------------------------------------------------------
+
+class TestPromptModelChoice:
+    def test_default_returns_first_preferred(self):
+        with patch("builtins.input", return_value=""):
+            result = melvin.MelvinChat._prompt_model_choice()
+        assert result == "phi3:mini"
+
+    def test_explicit_number_selects_model(self):
+        with patch("builtins.input", return_value="2"):
+            result = melvin.MelvinChat._prompt_model_choice()
+        assert result == "llama3.2:3b"
+
+    def test_custom_model_entry(self):
+        custom_idx = str(len(melvin.config.PREFERRED_MODELS) + 1)
+        with patch("builtins.input", side_effect=[custom_idx, "my-model:latest"]):
+            result = melvin.MelvinChat._prompt_model_choice()
+        assert result == "my-model:latest"
+
+    def test_eof_returns_none(self):
+        with patch("builtins.input", side_effect=EOFError):
+            result = melvin.MelvinChat._prompt_model_choice()
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
 # _ollama_tags
 # ---------------------------------------------------------------------------
 

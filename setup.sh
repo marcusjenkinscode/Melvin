@@ -40,69 +40,77 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # ------------------------------------------------------------
-# 4. Install Ollama
+# 4. Install Ollama (if not already present)
 # ------------------------------------------------------------
 echo ""
-echo "▶  Installing Ollama…"
+if command -v ollama &>/dev/null; then
+    echo "▶  Ollama is already installed. Skipping download."
+else
+    echo "▶  Installing Ollama…"
 
-ARCH="$(uname -m)"
-case "$ARCH" in
-    aarch64 | arm64)
-        OLLAMA_TARBALL="ollama-linux-arm64"
-        ;;
-    armv7l | armhf)
-        OLLAMA_TARBALL="ollama-linux-arm"
-        ;;
-    x86_64)
-        OLLAMA_TARBALL="ollama-linux-amd64"
-        ;;
-    *)
-        echo "  [!] Unsupported architecture: $ARCH"
-        echo "  Please install Ollama manually from https://ollama.com"
-        OLLAMA_TARBALL=""
-        ;;
-esac
+    ARCH="$(uname -m)"
+    case "$ARCH" in
+        aarch64 | arm64)
+            OLLAMA_TARBALL="ollama-linux-arm64"
+            ;;
+        armv7l | armhf)
+            OLLAMA_TARBALL="ollama-linux-arm"
+            ;;
+        x86_64)
+            OLLAMA_TARBALL="ollama-linux-amd64"
+            ;;
+        *)
+            echo "  [!] Unsupported architecture: $ARCH"
+            echo "  Please install Ollama manually from https://ollama.com"
+            OLLAMA_TARBALL=""
+            ;;
+    esac
 
-if [ -n "$OLLAMA_TARBALL" ]; then
-    OLLAMA_URL="https://github.com/ollama/ollama/releases/latest/download/${OLLAMA_TARBALL}.tgz"
-    INSTALL_DIR="$PREFIX/bin"
+    if [ -n "$OLLAMA_TARBALL" ]; then
+        OLLAMA_URL="https://github.com/ollama/ollama/releases/latest/download/${OLLAMA_TARBALL}.tgz"
+        INSTALL_DIR="$PREFIX/bin"
 
-    echo "  Downloading $OLLAMA_TARBALL…"
-    curl -fsSL "$OLLAMA_URL" | tar -xz -C /tmp
-    if mv /tmp/ollama "$INSTALL_DIR/ollama"; then
-        chmod +x "$INSTALL_DIR/ollama"
-        echo "  Ollama installed → $INSTALL_DIR/ollama"
-    else
-        echo "  [!] Failed to move Ollama binary to $INSTALL_DIR."
-        echo "      Try:  mv /tmp/ollama $INSTALL_DIR/ollama"
-        OLLAMA_TARBALL=""
+        echo "  Downloading $OLLAMA_TARBALL…"
+        curl -fsSL "$OLLAMA_URL" | tar -xz -C /tmp
+        if mv /tmp/ollama "$INSTALL_DIR/ollama"; then
+            chmod +x "$INSTALL_DIR/ollama"
+            echo "  Ollama installed → $INSTALL_DIR/ollama"
+        else
+            echo "  [!] Failed to move Ollama binary to $INSTALL_DIR."
+            echo "      Try:  mv /tmp/ollama $INSTALL_DIR/ollama"
+            OLLAMA_TARBALL=""
+        fi
     fi
 fi
 
 # ------------------------------------------------------------
-# 5. Pull a default model
+# 5. Start Ollama and pull a model
 # ------------------------------------------------------------
 echo ""
-echo "▶  Starting Ollama server in the background…"
-ollama serve &>/tmp/ollama_setup.log &
-OLLAMA_PID=$!
+if curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
+    echo "▶  Ollama is already running."
+else
+    echo "▶  Starting Ollama server in the background…"
+    ollama serve &>/tmp/ollama_setup.log &
+    OLLAMA_PID=$!
 
-# Wait until Ollama is accepting connections (up to 30 s)
-echo -n "  Waiting for Ollama to become ready"
-READY=0
-for i in $(seq 1 30); do
-    if curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
-        READY=1
-        break
+    # Wait until Ollama is accepting connections (up to 30 s)
+    echo -n "  Waiting for Ollama to become ready"
+    READY=0
+    for i in $(seq 1 30); do
+        if curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
+            READY=1
+            break
+        fi
+        echo -n "."
+        sleep 1
+    done
+    echo ""
+    if [ "$READY" -ne 1 ]; then
+        echo "  [!] Ollama did not start within 30 seconds."
+        echo "      Check /tmp/ollama_setup.log for details."
+        echo "      You can start it manually later: ollama serve &"
     fi
-    echo -n "."
-    sleep 1
-done
-echo ""
-if [ "$READY" -ne 1 ]; then
-    echo "  [!] Ollama did not start within 30 seconds."
-    echo "      Check /tmp/ollama_setup.log for details."
-    echo "      You can start it manually later: ollama serve &"
 fi
 
 # Try to pull the smallest capable model
@@ -122,10 +130,31 @@ if [ -z "$PULLED" ]; then
     echo "      After setup, run:  ollama pull phi3:mini"
 fi
 
-# Keep Ollama running (don't kill $OLLAMA_PID so it stays up)
+# ------------------------------------------------------------
+# 6. Optional: install Melvin as a command
+# ------------------------------------------------------------
+echo ""
+echo "▶  Install 'melvin' as a system-wide command?"
+echo "   This runs 'pip install .' so you can type 'melvin' from anywhere."
+echo ""
+read -rp "   Install system-wide? [y/N] " INSTALL_CHOICE
+
+case "$INSTALL_CHOICE" in
+    [yY]|[yY][eE][sS])
+        echo ""
+        pip install .
+        echo ""
+        echo "  ✓  Installed!  You can now run:  melvin"
+        ;;
+    *)
+        echo ""
+        echo "  Skipped.  You can always install later with:  pip install ."
+        echo "  Or run directly with:  python melvin.py"
+        ;;
+esac
 
 # ------------------------------------------------------------
-# 6. Done
+# 7. Done
 # ------------------------------------------------------------
 echo ""
 echo "╔══════════════════════════════════════════╗"
@@ -136,7 +165,7 @@ if [ -n "$PULLED" ]; then
 fi
 echo "║"
 echo "║  To start Melvin:"
-echo "║    ollama serve &    # (if not already running)"
-echo "║    python melvin.py"
+echo "║    melvin               # if installed system-wide"
+echo "║    python melvin.py     # otherwise"
 echo "╚══════════════════════════════════════════╝"
 echo ""
