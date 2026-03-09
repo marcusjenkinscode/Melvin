@@ -117,7 +117,8 @@ class TestPromptModelChoice:
         assert result == "llama3.2:3b"
 
     def test_custom_model_entry(self):
-        with patch("builtins.input", side_effect=[str(len(melvin.config.PREFERRED_MODELS) + 1), "my-model:latest"]):
+        custom_idx = str(len(melvin.config.PREFERRED_MODELS) + 1)
+        with patch("builtins.input", side_effect=[custom_idx, "my-model:latest"]):
             result = melvin.MelvinChat._prompt_model_choice()
         assert result == "my-model:latest"
 
